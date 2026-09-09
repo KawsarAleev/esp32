@@ -1,0 +1,71 @@
+#define BLYNK_TEMPLATE_ID   "TMPL67GVWgu4x"
+#define BLYNK_TEMPLATE_NAME "Soil Moisture Monitor"
+#define BLYNK_AUTH_TOKEN    "HspcCSoyMLwzcodYdUhYFQxFWhcXuGlx"
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "Kawsar9";
+char pass[] = "123454321";
+
+// Soil moisture sensor
+#define SOIL_PIN 34
+
+// DHT sensor
+#define DHT_PIN 4
+#define DHT_TYPE DHT22
+
+DHT dht(DHT_PIN, DHT_TYPE);
+BlynkTimer timer;
+
+void sendSensorData() {
+  // Read Soil Moisture
+  int soilValue = analogRead(SOIL_PIN);
+  int soilMoisture = map(soilValue, 4095, 1500, 0, 100);
+  soilMoisture = constrain(soilMoisture, 0, 100);
+
+  // Read Temperature and Humidity
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Display Results Locally in Serial Monitor
+  Serial.println("================================");
+  Serial.print("Soil Moisture: ");
+  Serial.print(soilMoisture);
+  Serial.println("%");
+  Serial.print("Air Humidity: ");
+  Serial.print(humidity);
+  Serial.println("%");
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println(" C");
+
+  // Send Data to Blynk Virtual Pins
+  Blynk.virtualWrite(V0, soilMoisture); // V0 = Soil Moisture
+  Blynk.virtualWrite(V1, temperature);  // V1 = Temperature
+  Blynk.virtualWrite(V2, humidity);     // V2 = Humidity
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  
+  Serial.println("Connecting to WiFi and Blynk...");
+  Blynk.begin(auth, ssid, pass);
+
+  // Send sensor data every 2 seconds
+  timer.setInterval(2000L, sendSensorData);
+}
+
+void loop() {
+  Blynk.run();
+  timer.run();
+}
