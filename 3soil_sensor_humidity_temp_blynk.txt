@@ -1,0 +1,93 @@
+#define BLYNK_TEMPLATE_ID   "TMPL67GVWgu4x"
+#define BLYNK_TEMPLATE_NAME "Soil Moisture Monitor"
+#define BLYNK_AUTH_TOKEN    "HspcCSoyMLwzcodYdUhYFQxFWhcXuGlx"
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+
+// WiFi credentials
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "Kawsar9";
+char pass[] = "123454321";
+
+// Pin-  3 Soil Moisture Sensors
+#define SOIL1_PIN 34
+#define SOIL2_PIN 35
+#define SOIL3_PIN 32
+
+// DHT22 Pin Definition
+#define DHT_PIN 4
+#define DHT_TYPE DHT22
+
+DHT dht(DHT_PIN, DHT_TYPE);
+BlynkTimer timer;
+
+int readSoilMoisture(int pin) {
+  int value = analogRead(pin);
+  int percentage = map(value, 4095, 1500, 0, 100);
+  return constrain(percentage, 0, 100);
+}
+
+void sendSensorData() {
+  // Read Soil Sensors
+  int soil1 = readSoilMoisture(SOIL1_PIN);
+  int soil2 = readSoilMoisture(SOIL2_PIN);
+  int soil3 = readSoilMoisture(SOIL3_PIN);
+
+  // Read DHT22 Sensor
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  // Serial Monitor output
+  Serial.println("==========================================");
+  Serial.print("Soil Sensor 1: "); Serial.print(soil1); Serial.println("%");
+  Serial.print("Soil Sensor 2: "); Serial.print(soil2); Serial.println("%");
+  Serial.print("Soil Sensor 3: "); Serial.print(soil3); Serial.println("%");
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Warning: Failed to read from DHT sensor!");
+  } else {
+    Serial.print("Air Humidity: "); Serial.print(humidity, 1); Serial.println("%");
+    Serial.print("Temperature : "); Serial.print(temperature, 1); Serial.println(" C");
+  }
+
+  // Push Data to Blynk Virtual Pins
+  if (Blynk.connected()) {
+    Blynk.virtualWrite(V0, soil1);       // Soil Moisture 1
+    Blynk.virtualWrite(V3, soil2);       // Soil Moisture 2
+    Blynk.virtualWrite(V4, soil3);       // Soil Moisture 3
+
+    if (!isnan(humidity) && !isnan(temperature)) {
+      Blynk.virtualWrite(V1, temperature); // Temperature
+      Blynk.virtualWrite(V2, humidity);    // Humidity
+    }
+  }
+}
+
+void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+  Serial.begin(115200);
+  delay(1000);
+  dht.begin();
+  WiFi.begin(ssid, pass);
+  Blynk.config(auth);
+  Blynk.connect(10000);
+  timer.setInterval(2500L, sendSensorData);
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!Blynk.connected()) {
+      Blynk.connect(1000);
+    } else {
+      Blynk.run();
+    }
+  }
+  
+  timer.run();
+}
